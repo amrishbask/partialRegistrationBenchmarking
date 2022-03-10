@@ -1,5 +1,6 @@
 import os
 import argparse
+from turtle import color
 import tqdm
 import json
 from datetime import datetime
@@ -15,12 +16,12 @@ import matplotlib.pyplot as plt
 import copy
 import tqdm
 
-def make_beforeAfter_plot(before, after, graph_dir):
+def make_beforeAfter_plot(before, after, graph_dir, colors):
     before = np.array(before).flatten()
     after = np.array(after).flatten()
     indices = np.where(after > np.max(before))
-    colors = np.ones((after.shape[0], 3))*np.array([0,0,1])
-    colors[indices] = np.array([1,0,0])
+    # colors = np.ones((after.shape[0], 3))*np.array([0,0,1])
+    # colors[indices] = np.array([1,0,0])
     num_greater_10 = np.sum(np.where(after > 0.01, 1, 0))
     print("percentage above 10mm = ", num_greater_10/ len(after))
     after = np.where(after > np.max(before),np.max(before), after)
@@ -46,18 +47,23 @@ def make_beforeAfter_plot(before, after, graph_dir):
 def before_after_graph(results_fn, graph_dir):
     errors_before = []
     errors_after = []
+    color_presets = [[0,0,1], [0,1,0], [1,1,0], [0,1,1], [1,0,1], [1,0,0], [0,0,0], [0.5,0.5,0], [0,0.5,0.5]]
+    colors = []
     with open(results_fn, "r") as f:
         results = json.load(f)
         num_seams = 0
         for seams_data in results.values():
             num_seams += len(seams_data.keys())
-            for errors in seams_data.values():
-                errors_before.append(errors[0])
-                errors_after.append(errors[1])
+            for i, errors in enumerate(seams_data.values()):
+
+                errors_before.extend(errors[0])
+                errors_after.extend(errors[1])
+                temp = [color_presets[i]]*len(errors[0])
+                colors.extend(temp)
         print("Number of parts: ", len(results.keys()))
         print("Total number of seams: ", num_seams)
-
-    make_beforeAfter_plot(errors_before, errors_after, graph_dir)
+    colors = np.array(colors)
+    make_beforeAfter_plot(errors_before, errors_after, graph_dir, colors)
 
 def max_dist(pts1, pts2):
     tree1 = cKDTree(pts1)
@@ -176,7 +182,7 @@ def run_partial_registration(transforms, executable, results_seam_dir, model_mes
         temp_scan = copy.deepcopy(scan_pcd)
         
         temp_scan_pcd_points = np.array(temp_scan.points)
-        temp_scan.points = o3d.utility.Vector3dVector(temp_scan_pcd_points + np.random.normal(0.0, 0.001, np.shape(temp_scan_pcd_points)))
+        temp_scan.points = o3d.utility.Vector3dVector(temp_scan_pcd_points + np.random.normal(0.0, 0.0005, np.shape(temp_scan_pcd_points)))
         o3d.io.write_point_cloud(scan_pcd_noise_fn, temp_scan)
 
         transform_center = np.eye(4)
@@ -254,8 +260,8 @@ def benchmark_data(result_parent_dir, result_fn, executable, data_dir, num_trial
     options["benchmark_settings"] = {"num_trials_per_mod": num_trials_per_mod}
     resolution = 5
     mods = {
-        "translation": np.linspace(0, 0.08, resolution),
-        "rotation": np.linspace(0, np.deg2rad(5), resolution),
+        "translation": np.flip(np.linspace(0, 0.08, resolution)),
+        "rotation": np.flip(np.linspace(0, np.deg2rad(5), resolution)),
     }
     options["mods"] = {k: v.tolist() for k, v in mods.items()}
 
@@ -338,7 +344,7 @@ if __name__ == "__main__":
     print("Benchmark runtime: ", end_time - start_time)
 
     # folder = "/home/amrishbaskaran/benchmark_data/partial_registration/results/2022_03_08_10_24_33_test_normals/parts"
-    # folder = "/home/amrishbaskaran/benchmark_data/partial_registration/results/2022_03_07_17_58_03_test_no_normals/parts"
+    # folder = "/home/amrishbaskaran/benchmark_data/partial_registration/results/2022_03_09_17_59_02_only_graph/parts"
     # result_fn = f"{folder}/results.json"
     # result_parent_dir = folder
     before_after_graph(result_fn, result_parent_dir)
